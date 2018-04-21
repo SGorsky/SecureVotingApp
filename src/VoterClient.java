@@ -1,4 +1,4 @@
-    import java.awt.FlowLayout;
+import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -56,13 +56,12 @@ public class VoterClient extends JFrame implements ActionListener {
     private static JTextField monthField;
     private static JTextField dayField;
     private static JTextField voteCode;
-    
+
     private static JLabel writeName;
     private static JLabel writeYear;
     private static JLabel writeMonth;
     private static JLabel writeDay;
-    
-    
+
     private static boolean noConnectionCLA = false;		// used to display if the CLA server is not connected
     private static boolean noConnectionCTF = false;		// used to display if the CTF server is not connected
 
@@ -139,19 +138,19 @@ public class VoterClient extends JFrame implements ActionListener {
     //Initializing the frame
     private void initJFrame() {
         mainFrame = new JFrame("Voter");
-        
+
         getCode = new JButton("Get code");
         vote = new JButton("Vote");
         exit = new JButton("Exit");
         butnVoteCode = new JButton("Verify");
         back = new JButton("Back");
         castVote = new JButton("Vote");
-        
+
         party1 = new JRadioButton("Party1");
         party2 = new JRadioButton("Party2");
         party3 = new JRadioButton("Party3");
         party4 = new JRadioButton("Party4");
-        
+
         //Setting up the field to make sure user is over 18 to vote
         nameField = new JTextField(5);
         yearField = new JTextField(5);
@@ -159,12 +158,11 @@ public class VoterClient extends JFrame implements ActionListener {
         dayField = new JTextField(5);
         voteCode = new JTextField(20);
 
-        writeName = new JLabel("Name");
-        writeYear = new JLabel("Year");
-        writeMonth = new JLabel("Month");
-        writeDay = new JLabel("Day");
-        
-        
+        writeName = new JLabel("Name: ");
+        writeYear = new JLabel("Enter your Birthday      Year");
+        writeMonth = new JLabel("Month: ");
+        writeDay = new JLabel("Day: ");
+
         mainFrame.setLayout(new FlowLayout());
 
         mainFrame.add(writeName);
@@ -186,144 +184,130 @@ public class VoterClient extends JFrame implements ActionListener {
 
         mainFrame.pack();
         mainFrame.setVisible(true);
-        
+
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
 
         System.out.println("============ In ActionPerfromed ============");
-        if(e.getSource()==getCode)
-        {
+        if (e.getSource() == getCode) {
             System.out.println("============ Getting code ============");
             String name = nameField.getText();
             String day = dayField.getText();
             String month = monthField.getText();
             String year = yearField.getText();
-            
-            if (name.equals("")) {
-                System.out.println("Enter in a valid name");
-                JOptionPane.showMessageDialog(mainFrame, "Enter in a valid name", "Error", JOptionPane.ERROR_MESSAGE);
-//                System.exit(1);
-            }
-            
+
             try {
-                Calendar c = Calendar.getInstance();
-                c.setLenient(false);
-                c.set(Integer.parseInt(year), Integer.parseInt(month), Integer.parseInt(day));
+                if (name.isEmpty()) {
+                    System.out.println("Error: No name entered");
+                    // JOptionPane.showMessageDialog(mainFrame, "Enter in a valid name", "Error", JOptionPane.ERROR_MESSAGE);
+                    // System.exit(1);
+                } else {
+                    Calendar c = Calendar.getInstance();
+                    c.setLenient(false);
+                    c.clear();
+                    c.set(Integer.parseInt(year), Integer.parseInt(month) - 1, Integer.parseInt(day));
+                    Calendar today = Calendar.getInstance();
+
+                    today.add(Calendar.YEAR, -18);
+                    if (today.before(c)) {
+                        System.out.println("Sorry. You need to be at least 18 to vote.");
+                        //                System.exit(1);
+                    } else {
+                        System.out.println("Done getting inputs: ");
+                        String voterInfo = name + ": " + year + "-" + month + "-" + day;
+                        runCLA(voterInfo); //Issues calling this function
+                    }
+                }
             } catch (Exception exception) {
-                JOptionPane.showMessageDialog(mainFrame, "Invalid Date", "Error: " + exception.getMessage(), 
-                        JOptionPane.ERROR_MESSAGE);
+                System.out.println("Invalid Date: " + exception.getMessage());
+//                JOptionPane.showMessageDialog(mainFrame, "Invalid Date: " + exception.getMessage(), "Error",
+//                        JOptionPane.ERROR_MESSAGE);
             }
-
-            int age = currentYear - Integer.parseInt(year);
-
-            if (age < 18) {
-                System.out.println("Enter in a valid year, age needs to be greater than 18");
-//                System.exit(1);
-            }
-
-            System.out.println("Done getting inputs: ");   
-            String voterInfo = name + ": " + year +"-"+month+"-"+day;
-            runCLA(voterInfo); //Issues calling this function
-        }
-        
-        else if (e.getSource() == vote)
-        {
+        } else if (e.getSource() == vote) {
             System.out.println("========= Verifying user ==========");
             removeMainFrameComponents();
             verifyUser();
-        }
-        
-        else if(e.getSource() == butnVoteCode)
-        {
-             System.out.println("========= Voting ==========");
-             removeVerifyUser();
-             runCTF(); //Run to verify and allows the user to vote
-             
-             /*if (noConnectionCTF == true)
+        } else if (e.getSource() == butnVoteCode) {
+            System.out.println("========= Voting ==========");
+            removeVerifyUser();
+            runCTF(); //Run to verify and allows the user to vote
+
+            /*if (noConnectionCTF == true)
                      {
                      castVote();
                      }*/
-        }
-        else if(e.getSource() == back)
-        {
+        } else if (e.getSource() == back) {
             initJFrame();
-        }
-        
-        else if (e.getSource() == exit)
-        {
+        } else if (e.getSource() == exit) {
             System.out.println("========= Quit Button is pressed ==========");
             System.exit(0);
         }
-        
+
     }
-    public void verifyUser()
-    {
+
+    public void verifyUser() {
         mainFrame.add(butnVoteCode);
         mainFrame.add(back);
         mainFrame.add(voteCode);
         //writeVoteCode.setVisible(true);
-        
+
         mainFrame.repaint();
         mainFrame.validate();
-                
+
         //runCTF();
     }
-    
-    public void removeVerifyUser()
-    {
+
+    public void removeVerifyUser() {
         butnVoteCode.setVisible(false);
         voteCode.setVisible(false);
     }
-    
-    public void castVote()
-    {
+
+    public void castVote() {
         System.out.println("Setting up the radio buttons");
-                
+
         //Grouping radio buttons
         ButtonGroup group = new ButtonGroup();
         group.add(party1);
         group.add(party2);
         group.add(party3);
         group.add(party4);
-        
+
         party1.addActionListener(this);
         party2.addActionListener(this);
         party3.addActionListener(this);
         party4.addActionListener(this);
-        
+
         mainFrame.add(castVote);
         mainFrame.add(party1);
         mainFrame.add(party2);
         mainFrame.add(party3);
         mainFrame.add(party4);
-        
+
         mainFrame.repaint();
-        mainFrame.validate();        
+        mainFrame.validate();
     }
-    
-    public void removeMainFrameComponents()
-    {
+
+    public void removeMainFrameComponents() {
         nameField.setVisible(false);
         yearField.setVisible(false);
         monthField.setVisible(false);
         dayField.setVisible(false);
-        
+
         writeName.setVisible(false);
         writeYear.setVisible(false);
         writeMonth.setVisible(false);
         writeDay.setVisible(false);
-        
+
         getCode.setVisible(false);
         vote.setVisible(false);
-      //  exit.setVisible(false);
+        //  exit.setVisible(false);
     }
-    
-    public void runCTF()
-    {
-     //Call the CTF to confirm user code  
+
+    public void runCTF() {
+        //Call the CTF to confirm user code  
         castVote();
     }
-    
+
 }
