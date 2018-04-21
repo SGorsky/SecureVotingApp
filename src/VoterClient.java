@@ -207,15 +207,13 @@ public class VoterClient extends JFrame implements ActionListener {
 //                System.exit(1);
             }
             
-            if (Integer.parseInt(day) <= 0 || Integer.parseInt(day) > 31) {
-                
-                System.out.println("Enter in a valid day");
-//                System.exit(1);
-            }
-
-            if (Integer.parseInt(month) <= 0 || Integer.parseInt(month) > 12) {
-                System.out.println("Enter in a valid month");
-//                System.exit(1);
+            try {
+                Calendar c = Calendar.getInstance();
+                c.setLenient(false);
+                c.set(Integer.parseInt(year), Integer.parseInt(month), Integer.parseInt(day));
+            } catch (Exception exception) {
+                JOptionPane.showMessageDialog(mainFrame, "Invalid Date", "Error: " + exception.getMessage(), 
+                        JOptionPane.ERROR_MESSAGE);
             }
 
             int age = currentYear - Integer.parseInt(year);
