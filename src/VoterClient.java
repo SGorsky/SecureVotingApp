@@ -5,6 +5,8 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Calendar;
 import javax.net.ssl.KeyManagerFactory;
@@ -26,8 +28,11 @@ import javax.swing.JOptionPane;
  */
 public class VoterClient extends JFrame implements ActionListener {
 
-    private final String host = "localhost";
-    private final int port = 8080;
+    private InetAddress host;
+    private int port = 8080;
+    static final int DEFAULT_CLA_PORT = 8188;
+    static final int DEFAULT_CTF_PORT = 8189;
+    
     private PrintWriter socketOut;
     private BufferedReader socketIn;
     private final int currentYear = 2018;
@@ -70,16 +75,14 @@ public class VoterClient extends JFrame implements ActionListener {
         initJFrame();
     }
 
-    /*VoterClient(InetAddress host, int port)
+    VoterClient(InetAddress host, int port)
      {
-     this.host = host;
-     this.port = port;
+        this.host = host;
+        this.port = port;
      }
-     */
+     
     public static void main(String[] args) {
         VoterClient vc = new VoterClient();
-        //vc.runCLA(KEYSTORE);
-
     }
 
     /**
@@ -195,13 +198,16 @@ public class VoterClient extends JFrame implements ActionListener {
     public void actionPerformed(ActionEvent e) {
 
         System.out.println("============ In ActionPerfromed ============");
+        /*
+        *Taking input to verify the user and get the code
+        */
         if (e.getSource() == getCode) {
             System.out.println("============ Getting code ============");
             String name = nameField.getText();
             String day = dayField.getText();
             String month = monthField.getText();
             String year = yearField.getText();
-
+            String voterInfo = null;
             try {
                 if (name.isEmpty()) {
                     System.out.println("Error: No name entered");
@@ -220,24 +226,43 @@ public class VoterClient extends JFrame implements ActionListener {
                         //                System.exit(1);
                     } else {
                         System.out.println("Done getting inputs: ");
-                        String voterInfo = name + ": " + year + "-" + month + "-" + day;
-                        runCLA(voterInfo); //Issues calling this function
+                        voterInfo = name + ": " + year + "-" + month + "-" + day;
+                        //runCLA(voterInfo); //Issues calling this function
                     }
                 }
+                //Connecting to the CLA server with the correct ports
+                InetAddress CLAHost = InetAddress.getLocalHost();
+                VoterClient vc = new VoterClient(CLAHost,DEFAULT_CLA_PORT);
+        	vc.runCLA(voterInfo);
+                
             } catch (Exception exception) {
                 System.out.println("Invalid Date: " + exception.getMessage());
 //                JOptionPane.showMessageDialog(mainFrame, "Invalid Date: " + exception.getMessage(), "Error",
 //                        JOptionPane.ERROR_MESSAGE);
             }
-        } else if (e.getSource() == vote) {
+        }
+        /*
+        * Once the user has the code, it is inputed to allow the user to cast a vote  
+        */ 
+        else if (e.getSource() == vote) {
             System.out.println("========= Verifying user ==========");
             removeMainFrameComponents();
             verifyUser();
-            runCTF(voteCode.getText()); //Run to verify and allows the user to vote
+            //Connecting to the server with the correct ports
+            InetAddress CTFHost;
+            try {
+                CTFHost = InetAddress.getLocalHost();
+                VoterClient vc = new VoterClient(CTFHost,DEFAULT_CTF_PORT);
+                vc.runCTF(voteCode.getText()); //Run to verify and allows the user to vote
+            } catch (UnknownHostException ex) {
+                //Logger.getLogger(VoterClient.class.getName()).log(Level.SEVERE, null, ex);
+                System.out.println("Cannot connect to the CTF server");
+            }
+            
             if (e.getSource() == butnVoteCode) {
                 System.out.println("========= Voting ==========");
                 removeVerifyUser();
-               
+                //DISPLAY RESULTS
             }
         }
          else if (e.getSource() == back) {
@@ -264,8 +289,8 @@ public class VoterClient extends JFrame implements ActionListener {
         voteCode.setVisible(false);
         back.setVisible(false);
         
-        mainFrame.repaint();
-        mainFrame.validate();
+        /* mainFrame.repaint();
+        mainFrame.validate();*/
     }
 
     public void castVote() {
