@@ -82,6 +82,10 @@ public class VoterClient extends JFrame implements ActionListener {
 
     }
 
+    /**
+     * Running the CLA server to get the validation code
+     * @param ssn 
+     */
     public void runCLA(String ssn) {
         //Getting validation from the CTF server
         try {
@@ -229,22 +233,19 @@ public class VoterClient extends JFrame implements ActionListener {
             System.out.println("========= Verifying user ==========");
             removeMainFrameComponents();
             verifyUser();
-        } else if (e.getSource() == butnVoteCode) {
-            System.out.println("========= Voting ==========");
-            removeVerifyUser();
-            runCTF(); //Run to verify and allows the user to vote
-
-            /*if (noConnectionCTF == true)
-                     {
-                     castVote();
-                     }*/
-        } else if (e.getSource() == back) {
+            runCTF(voteCode.getText()); //Run to verify and allows the user to vote
+            if (e.getSource() == butnVoteCode) {
+                System.out.println("========= Voting ==========");
+                removeVerifyUser();
+               
+            }
+        }
+         else if (e.getSource() == back) {
             initJFrame();
         } else if (e.getSource() == exit) {
             System.out.println("========= Quit Button is pressed ==========");
             System.exit(0);
         }
-
     }
 
     public void verifyUser() {
@@ -256,12 +257,15 @@ public class VoterClient extends JFrame implements ActionListener {
         mainFrame.repaint();
         mainFrame.validate();
 
-        //runCTF();
     }
 
     public void removeVerifyUser() {
         butnVoteCode.setVisible(false);
         voteCode.setVisible(false);
+        back.setVisible(false);
+        
+        mainFrame.repaint();
+        mainFrame.validate();
     }
 
     public void castVote() {
@@ -305,8 +309,62 @@ public class VoterClient extends JFrame implements ActionListener {
         //  exit.setVisible(false);
     }
 
-    public void runCTF() {
-        //Call the CTF to confirm user code  
+    public void runCTF(String valCode) {
+        //Call the CTF to confirm user code 
+        try {
+            //Making keys to store the key from keys
+            System.out.println("Setting up keys for getting validation: ");
+            KeyStore keyStore = KeyStore.getInstance("JKS");
+            keyStore.load(new FileInputStream(KEYSTORE), STORE_PSWD.toCharArray());
+
+            //Storing turstStore
+            KeyStore trustStore = KeyStore.getInstance("JKS");
+            trustStore.load(new FileInputStream(TRUSTSTORE), STORE_PSWD.toCharArray());
+
+            //Generatating and instantiaing keys
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory.init(keyStore, ALIAS_PSWD.toCharArray());
+
+            //Generating and initiating trust key
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
+            trustManagerFactory.init(trustStore);
+
+            //ISSUES with the SSL connection
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+            SSLSocketFactory sslFact = sslContext.getSocketFactory();
+            SSLSocket client = (SSLSocket) sslFact.createSocket(host, port);
+            client.setEnabledCipherSuites(client.getSupportedCipherSuites());
+
+            System.out.println("\n>>>> Voter client <-> CTF SSL/TLS handshake completed");
+
+            socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
+            socketOut = new PrintWriter(client.getOutputStream(), true);
+
+            BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
+            System.out.println("Voter client sending validation code " + valCode + " to CTF server");
+			socketOut.println(valCode);
+			
+			int voterCase = Integer.parseInt(socketIn.readLine());
+			if(voterCase == 0){
+				JOptionPane.showMessageDialog(null, "Invalid code!");
+				socketOut.println("IngetParti");
+			} else if(voterCase == 1) {	
+                            // the voter has not already voted
+				 castVote();
+			} else if(voterCase == 2) {
+				String tmp = socketIn.readLine();
+				JOptionPane.showMessageDialog(null, "You have already voted! You voted for " + tmp);
+				socketOut.println("IngetParti");
+				//displayVoteResults();
+			} else {
+				System.out.println("RunCTF ERROR!");
+			}
+			
+			
+			noConnectionCTF = false;
+        }
+        catch(Exception e){}
         castVote();
     }
 
