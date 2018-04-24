@@ -117,25 +117,29 @@ public class CLAServer {
         System.out.println("Connected to VoterClient");
 
         if (validConnection && voterClientDES != null) {
-            try {
-                input = inputStream.readUTF();
-                String decryptedInput = voterClientDES.decrypt(input);
-                System.out.println("Received Ciphertext: " + input + "\nCiphertext Decrypted: " + decryptedInput);
+            while (true) {
+                try {
+                    input = inputStream.readUTF();
+                    String[] decryptedInput = voterClientDES.decrypt(input).split(",");
+                    String hashSSN = Hash(decryptedInput[0]);
+                    if (decryptedInput[1].equals(hashSSN)) {
+                        System.out.println("Hashes match. Data integrity preserved");
+                        
+                        String validationNumber = String.valueOf(decryptedInput[0].hashCode());
+                        System.out.println("Validation Number for " + decryptedInput[0].split(":")[0] + " is " + validationNumber);
 
-                String hashSSN = Hash(decryptedInput.split(",")[0]);
-                if (decryptedInput.split(",")[1].equals(hashSSN)) {
-                    System.out.println("Hashes match. Data integrity preserved");
-                    String validationNumber = String.valueOf(decryptedInput.split(",")[0].hashCode());
-                    outputStream.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
-                    validationList.put(Integer.valueOf(validationNumber), decryptedInput.split(",")[0]);
-                } else {
-                    System.out.println("Hashes do not match. Data integrity violated");
+                        outputStream.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
+                        validationList.put(Integer.valueOf(validationNumber), decryptedInput[0]);
 
-                    String validationNumber = "-1";
-                    outputStream.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
+                    } else {
+                        System.out.println("Hashes do not match. Data integrity violated");
+
+                        String validationNumber = "-1";
+                        outputStream.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                System.out.println("Error: " + e.getMessage());
             }
         }
         /*
