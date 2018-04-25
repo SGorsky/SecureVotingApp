@@ -11,6 +11,8 @@ import java.util.Date;
 import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 public class CLAServer {
@@ -26,10 +28,15 @@ public class CLAServer {
 
     static ServerSocket echoServer = null;
     static Socket clientSocket = null;
-    static DataInputStream inputStream;
-    static DataOutputStream outputStream;
+
+    static Socket client = null;
+    static DataInputStream voterInput;
+    static DataOutputStream voterOutput;
+    static DataOutputStream CTF_Output;
+    static DataInputStream CTF_Input;
     private static EncryptRSA rsa_Cipher;
     private static EncryptDES voterClientDES = null;
+    private static EncryptDES CTF_DES = null;
     private static Hashtable validationList = new Hashtable();
 
     /**
@@ -52,15 +59,15 @@ public class CLAServer {
             KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
             echoServer = new ServerSocket(9999);
             clientSocket = echoServer.accept();
-            outputStream = new DataOutputStream(clientSocket.getOutputStream());
-            inputStream = new DataInputStream(clientSocket.getInputStream());
+            voterOutput = new DataOutputStream(clientSocket.getOutputStream());
+            voterInput = new DataInputStream(clientSocket.getInputStream());
 
             rsa_Cipher = new EncryptRSA();
             PublicKey clientPublicRSAKey;
             EncryptRSA clientPublicRSA;
 
             //Read in the client's public key
-            input = inputStream.readUTF();
+            input = voterInput.readUTF();
 //            System.out.println("Received Encoded Key: " + input);
             byte[] decodedKey = Base64.getDecoder().decode(input);
 //            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
@@ -70,12 +77,12 @@ public class CLAServer {
 
 //            System.out.println("Decoded Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
             String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
-            outputStream.writeUTF(encodedKey);
+            voterOutput.writeUTF(encodedKey);
 //            System.out.println("Sent Encoded Key: " + encodedKey);
 
             //Read in input from client and decrypt it using your public key
             //It should be a nonce and the client's ID
-            input = inputStream.readUTF();
+            input = voterInput.readUTF();
 //            System.out.println("Received M1: " + input);
             String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
 //            System.out.println("Received Decrypted M1: "+ decryptedInput);
@@ -84,14 +91,14 @@ public class CLAServer {
 
             //Create a new nonce and add it with the client's nonce
             //Encrypt it using the client's public key and send back to the client
-            String nonce2 = Long.toString(new Date().getTime());;
+            String nonce2 = Long.toString(new Date().getTime());
             String message2 = nonce1 + "~" + nonce2;
 //            System.out.println("Sending M2: "+ message2);
             String encryptedMessage = clientPublicRSA.encrypt(message2, clientPublicRSAKey);
-            outputStream.writeUTF(encryptedMessage);
+            voterOutput.writeUTF(encryptedMessage);
 //            System.out.println("Sent Encrypted M2: " + encryptedMessage);
 
-            input = inputStream.readUTF();
+            input = voterInput.readUTF();
 //            System.out.println("Received M3: " + input);
             decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
 //            System.out.println("Decrypted M3: " + decryptedInput);
@@ -99,10 +106,10 @@ public class CLAServer {
 //                System.out.println("Nonce2 Matches: " + nonce2 + " = " + decryptedInput);
 
                 //Read in the client's private key
-                input = inputStream.readUTF();
+                input = voterInput.readUTF();
 //                System.out.println("Received Part 1 Encoded Private DES Key: " + input);
                 String keyPart1 = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
-                input = inputStream.readUTF();
+                input = voterInput.readUTF();
 //                System.out.println("Received Part 2 Encoded Private DES Key: " + input);
                 String keyPart2 = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
                 decodedKey = Base64.getDecoder().decode(clientPublicRSA.decrypt(keyPart1 + keyPart2, clientPublicRSAKey));
@@ -119,27 +126,124 @@ public class CLAServer {
         if (validConnection && voterClientDES != null) {
             while (true) {
                 try {
-                    input = inputStream.readUTF();
+                    input = voterInput.readUTF();
                     String[] decryptedInput = voterClientDES.decrypt(input).split(",");
                     String hashSSN = Hash(decryptedInput[0]);
                     if (decryptedInput[1].equals(hashSSN)) {
                         System.out.println("Hashes match. Data integrity preserved");
-                        
+
                         String validationNumber = String.valueOf(decryptedInput[0].hashCode());
                         System.out.println("Validation Number for " + decryptedInput[0].split(":")[0] + " is " + validationNumber);
 
-                        outputStream.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
-                        validationList.put(Integer.valueOf(validationNumber), decryptedInput[0]);
+                        voterOutput.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
 
+                        if (!validationList.containsKey(validationNumber)) {
+                            validationList.put(Integer.valueOf(validationNumber), decryptedInput[0]);
+                            ConnectToCTFServer(Integer.valueOf(validationNumber));
+                        }
                     } else {
                         System.out.println("Hashes do not match. Data integrity violated");
 
                         String validationNumber = "-1";
-                        outputStream.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
+                        voterOutput.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
                     }
                 } catch (Exception e) {
                     System.out.println("Error: " + e.getMessage());
                 }
+            }
+        }
+    }
+
+    public void ConnectToCTFServer(int validationNumber) {
+        String input = "";
+        boolean validConnection = false;
+
+        if (CTF_DES == null) {
+            try {
+                KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+                ks.load(null);
+                client = new Socket("127.0.0.1", 9998);
+                CTF_Output = new DataOutputStream(client.getOutputStream());
+                CTF_Input = new DataInputStream(client.getInputStream());
+
+                rsa_Cipher = new EncryptRSA();
+                PublicKey serverPublicRSAKey;
+                EncryptRSA serverPublicRSA;
+
+                SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
+
+//            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
+                String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
+                CTF_Output.writeUTF(encodedKey);
+//            System.out.println("Sent Encoded Public Key: " + encodedKey);
+
+                input = CTF_Input.readUTF();
+//            System.out.println("Received Encoded Key: " + input);
+                byte[] decodedKey = Base64.getDecoder().decode(input);
+//            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
+                X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
+                serverPublicRSAKey = KeyFactory.getInstance("RSA").generatePublic(spec);
+                serverPublicRSA = new EncryptRSA();
+
+                //Generate nonce1 and IDA
+                String nonce1 = Long.toString(new Date().getTime());
+                String IDA = "Client";
+
+                //Combine them together, encrypt them using the Server's public key and send to server
+                String message1 = nonce1 + "~" + IDA;
+//            System.out.println("Sending M1: " + message1);
+                String encryptedMessage = serverPublicRSA.encrypt(message1, serverPublicRSAKey);
+                CTF_Output.writeUTF(encryptedMessage);
+//            System.out.println("Sent Encrypted M1: " + encryptedMessage);
+
+                //Read in response from server
+                input = CTF_Input.readUTF();
+//            System.out.println("Received M2: " + input);
+                String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
+//            System.out.println("Decrypted M2: " + decryptedInput);
+
+                //Check if the server returned nonce1 verifying that it is the one sending this message
+                if (decryptedInput.split("~")[0].equals(nonce1)) {
+//                System.out.println("Nonce1 Matches: " + nonce1 + " = " + decryptedInput.split("~")[0]);
+
+                    String nonce2 = decryptedInput.split("~")[1];
+                    encryptedMessage = serverPublicRSA.encrypt(nonce2, serverPublicRSAKey);
+//                System.out.println("Sending M3: " + nonce2);
+                    CTF_Output.writeUTF(encryptedMessage);
+//                System.out.println("Sent Encrypted M3: " + encryptedMessage);
+
+//                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
+                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
+                    String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
+                    String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
+                    CTF_DES = new EncryptDES(privateKey);
+                    CTF_Output.writeUTF(keyPart1);
+//                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
+                    CTF_Output.writeUTF(keyPart2);
+//                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
+                    validConnection = true;
+                }
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
+            }
+            System.out.println("Connected to CTF Server");
+        } else {
+            validConnection = true;
+        }
+        if (validConnection) {
+            try {
+                String number = String.valueOf(validationNumber);
+                CTF_Output.writeUTF(CTF_DES.encrypt(number + "," + Hash(number)));
+                String[] decryptedInput = CTF_DES.decrypt(CTF_Input.readUTF()).split(",");
+                
+                if (decryptedInput.equals("0")) {
+                    System.out.println("Validation Number (" + number + ") successfully stored in CTF Server");
+                }
+                else if (decryptedInput.equals("-1")){
+                    System.out.println("Data integrity of validation number breached between CLA and CTF Server");
+                }
+            } catch (Exception ex) {
+                System.out.println("Error: " + ex.getMessage());
             }
         }
     }
