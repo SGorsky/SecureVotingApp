@@ -281,7 +281,8 @@ public class VoterClient extends JFrame implements ActionListener {
                     c.clear();
                     c.set(Integer.parseInt(year), Integer.parseInt(month) - 1, Integer.parseInt(day));
                     Calendar today = Calendar.getInstance();
-                    System.out.println("User Info: " + name + " - " + c.getTime().toString().replace(" 00:00:00 EDT ", " "));
+                    System.out.println("User Info: " + name + " - " + 
+                            c.getTime().toString().replaceAll(" \\d\\d:\\d\\d:\\d\\d \\w\\w\\w ", " "));
                     today.add(Calendar.YEAR, -18);
                     if (today.before(c)) {
                         System.out.println("Sorry. You need to be at least 18 to vote.");
@@ -306,15 +307,8 @@ public class VoterClient extends JFrame implements ActionListener {
             removeMainFrameComponents();
             verifyUser();
             //Connecting to the server with the correct ports
-            InetAddress CTFHost;
-            try {
-                CTFHost = InetAddress.getLocalHost();
-                VoterClient vc = new VoterClient(CTFHost, DEFAULT_CTF_PORT);
-                vc.runCTF(voteCode.getText()); //Run to verify and allows the user to vote
-            } catch (UnknownHostException ex) {
-                //Logger.getLogger(VoterClient.class.getName()).log(Level.SEVERE, null, ex);
-                System.out.println("Cannot connect to the CTF server");
-            }
+            runCTF("temp"); //Run to verify and allows the user to vote
+
 
             if (e.getSource() == butnVoteCode) {
                 System.out.println("========= Voting ==========");
@@ -391,58 +385,140 @@ public class VoterClient extends JFrame implements ActionListener {
     }
 
     public void runCTF(String valCode) {
-        //Call the CTF to confirm user code 
-        try {
-            //Making keys to store the key from keys
-            System.out.println("Setting up keys for getting validation: ");
-            KeyStore keyStore = KeyStore.getInstance("JKS");
-            keyStore.load(new FileInputStream(KEYSTORE), STORE_PSWD.toCharArray());
+        String input = "";
+        boolean validConnection = false;
 
-            //Storing turstStore
-            KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(new FileInputStream(TRUSTSTORE), STORE_PSWD.toCharArray());
+        if (privateCTF_DES == null) {
+            try {
+                KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+                ks.load(null);
+                client = new Socket("127.0.0.1", 49681);
+                CTF_Output = new DataOutputStream(client.getOutputStream());
+                CTF_Input = new DataInputStream(client.getInputStream());
 
-            //Generatating and instantiaing keys
-            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-            keyManagerFactory.init(keyStore, ALIAS_PSWD.toCharArray());
+                rsa_Cipher = new EncryptRSA();
+                PublicKey serverPublicRSAKey;
+                EncryptRSA serverPublicRSA;
 
-            //Generating and initiating trust key
-            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
-            trustManagerFactory.init(trustStore);
+                SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
+                privateCTF_DES = new EncryptDES(privateKey);
 
-            //ISSUES with the SSL connection
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
-            SSLSocketFactory sslFact = sslContext.getSocketFactory();
-            SSLSocket client = (SSLSocket) sslFact.createSocket(host, port);
-            client.setEnabledCipherSuites(client.getSupportedCipherSuites());
+//            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
+                String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
+                CTF_Output.writeUTF(encodedKey);
+//            System.out.println("Sent Encoded Public Key: " + encodedKey);
 
-            System.out.println("\n>>>> Voter client <-> CTF SSL/TLS handshake completed");
+                input = CTF_Input.readUTF();
+//            System.out.println("Received Encoded Key: " + input);
+                byte[] decodedKey = Base64.getDecoder().decode(input);
+//            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
+                X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
+                serverPublicRSAKey = KeyFactory.getInstance("RSA").generatePublic(spec);
+                serverPublicRSA = new EncryptRSA();
 
-            socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
-            socketOut = new PrintWriter(client.getOutputStream(), true);
+                //Generate nonce1 and IDA
+                String nonce1 = Long.toString(new Date().getTime());
+                String IDA = "Client";
 
-            BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
-            System.out.println("Voter client sending validation code " + valCode + " to CTF server");
-            socketOut.println(valCode);
+                //Combine them together, encrypt them using the Server's public key and send to server
+                String message1 = nonce1 + "~" + IDA;
+//            System.out.println("Sending M1: " + message1);
+                String encryptedMessage = serverPublicRSA.encrypt(message1, serverPublicRSAKey);
+                CTF_Output.writeUTF(encryptedMessage);
+//            System.out.println("Sent Encrypted M1: " + encryptedMessage);
 
-            int voterCase = Integer.parseInt(socketIn.readLine());
-            if (voterCase == 0) {
-                JOptionPane.showMessageDialog(null, "Invalid code!");
-                socketOut.println("IngetParti");
-            } else if (voterCase == 1) {
-                // the voter has not already voted
-                castVote();
-            } else if (voterCase == 2) {
-                String tmp = socketIn.readLine();
-                JOptionPane.showMessageDialog(null, "You have already voted! You voted for " + tmp);
-                socketOut.println("IngetParti");
-                //displayVoteResults();
-            } else {
-                System.out.println("RunCTF ERROR!");
+                //Read in response from server
+                input = CTF_Input.readUTF();
+//            System.out.println("Received M2: " + input);
+                String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
+//            System.out.println("Decrypted M2: " + decryptedInput);
+
+                //Check if the server returned nonce1 verifying that it is the one sending this message
+                if (decryptedInput.split("~")[0].equals(nonce1)) {
+//                System.out.println("Nonce1 Matches: " + nonce1 + " = " + decryptedInput.split("~")[0]);
+
+                    String nonce2 = decryptedInput.split("~")[1];
+                    encryptedMessage = serverPublicRSA.encrypt(nonce2, serverPublicRSAKey);
+//                System.out.println("Sending M3: " + nonce2);
+                    CTF_Output.writeUTF(encryptedMessage);
+//                System.out.println("Sent Encrypted M3: " + encryptedMessage);
+
+//                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
+                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
+                    String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
+                    String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
+                    CTF_Output.writeUTF(keyPart1);
+//                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
+                    CTF_Output.writeUTF(keyPart2);
+//                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
+                    validConnection = true;
+                }
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
             }
-        } catch (Exception e) {
+            System.out.println("Connected to CTF Server");
+        } else {
+            validConnection = true;
         }
+        if (validConnection) {
+            try {
+                
+            } catch (Exception ex) {
+                System.out.println("Error: " + ex.getMessage());
+            }
+        }
+        //Call the CTF to confirm user code 
+//        try {
+//            //Making keys to store the key from keys
+//            System.out.println("Setting up keys for getting validation: ");
+//            KeyStore keyStore = KeyStore.getInstance("JKS");
+//            keyStore.load(new FileInputStream(KEYSTORE), STORE_PSWD.toCharArray());
+//
+//            //Storing turstStore
+//            KeyStore trustStore = KeyStore.getInstance("JKS");
+//            trustStore.load(new FileInputStream(TRUSTSTORE), STORE_PSWD.toCharArray());
+//
+//            //Generatating and instantiaing keys
+//            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+//            keyManagerFactory.init(keyStore, ALIAS_PSWD.toCharArray());
+//
+//            //Generating and initiating trust key
+//            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
+//            trustManagerFactory.init(trustStore);
+//
+//            //ISSUES with the SSL connection
+//            SSLContext sslContext = SSLContext.getInstance("TLS");
+//            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+//            SSLSocketFactory sslFact = sslContext.getSocketFactory();
+//            SSLSocket client = (SSLSocket) sslFact.createSocket(host, port);
+//            client.setEnabledCipherSuites(client.getSupportedCipherSuites());
+//
+//            System.out.println("\n>>>> Voter client <-> CTF SSL/TLS handshake completed");
+//
+//            socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
+//            socketOut = new PrintWriter(client.getOutputStream(), true);
+//
+//            BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
+//            System.out.println("Voter client sending validation code " + valCode + " to CTF server");
+//            socketOut.println(valCode);
+//
+//            int voterCase = Integer.parseInt(socketIn.readLine());
+//            if (voterCase == 0) {
+//                JOptionPane.showMessageDialog(null, "Invalid code!");
+//                socketOut.println("IngetParti");
+//            } else if (voterCase == 1) {
+//                // the voter has not already voted
+//                castVote();
+//            } else if (voterCase == 2) {
+//                String tmp = socketIn.readLine();
+//                JOptionPane.showMessageDialog(null, "You have already voted! You voted for " + tmp);
+//                socketOut.println("IngetParti");
+//                //displayVoteResults();
+//            } else {
+//                System.out.println("RunCTF ERROR!");
+//            }
+//        } catch (Exception e) {
+//        }
         castVote();
     }
 
