@@ -57,7 +57,7 @@ public class CTFServer {
 
         try {
             KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-            echoServer = new ServerSocket(9998);
+            echoServer = new ServerSocket(49681);
             CLA_Socket = echoServer.accept();
             CLA_Output = new DataOutputStream(CLA_Socket.getOutputStream());
             CLA_Input = new DataInputStream(CLA_Socket.getInputStream());
@@ -123,22 +123,25 @@ public class CTFServer {
         }
 
         if (validConnection && DES_Key != null) {
-            try {
-                String[] validationNumber = DES_Key.decrypt(CLA_Input.readUTF()).split(",");
-                int num = Integer.valueOf(validationNumber[0]);
+            while (true) {
+                try {
+                    String[] validationNumber = DES_Key.decrypt(CLA_Input.readUTF()).split(",");
+                    int num = Integer.valueOf(validationNumber[0]);
 
-                if (Hash(validationNumber[0]).equals(validationNumber[1])) {
-                    if (!validationList.containsKey(num)) {
-                        validationList.put(num, false);
-                        System.out.println("Validation Number stored");
+                    if (Hash(validationNumber[0]).equals(validationNumber[1])) {
+                        if (!validationList.containsKey(num)) {
+                            validationList.put(num, false);
+                            System.out.println("Validation Number (" + num + ") stored");
+                            CLA_Output.writeUTF(DES_Key.encrypt("0," + Hash("0")));
+                        }
+                    } else {
+                        System.out.println("Data integrity breached. Hashes do not match!\nReceived: " + validationNumber[1]
+                                + "\nCalculated: " + Hash(validationNumber[0]));
+                        CLA_Output.writeUTF(DES_Key.encrypt("-1," + Hash("-1")));
                     }
-                } else {
-                    System.out.println("Data integrity breached. Hashes do not match!\nReceived: " + validationNumber[1] 
-                            + "\nCalculated: " + Hash(validationNumber[0]));
-                    CLA_Output.writeUTF(DES_Key.encrypt("-1," + Hash("-1")));
+                } catch (Exception ioe) {
+                    System.out.println("Error: " + ioe.getMessage());
                 }
-            } catch (Exception ioe) {
-                System.out.println("Error: " + ioe.getMessage());
             }
         }
     }
@@ -161,6 +164,7 @@ public class CTFServer {
      * @param args[0] Optional port number in place of the default
      */
     public static void main(String[] args) {
+        System.out.println("Starting CTF Server!");
         int port = DEFAULT_PORT;
         if (args.length > 0) {
             port = Integer.parseInt(args[0]);
