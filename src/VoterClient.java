@@ -56,8 +56,7 @@ public class VoterClient extends JFrame implements ActionListener {
     static DataOutputStream CTF_Output;
     static DataInputStream CTF_Input;
     private static EncryptRSA rsa_Cipher;
-    private static EncryptDES privateVoterDES = null;
-    private static EncryptDES privateCTF_DES = null;
+    private static EncryptDES DES_Key = null;
 
     static final String KEYSTORE = "src/ElectionKey.jks";
     static final String TRUSTSTORE = "src/TrustStore.jks";
@@ -111,7 +110,7 @@ public class VoterClient extends JFrame implements ActionListener {
         String input = "";
         boolean validConnection = false;
 
-        if (privateVoterDES == null) {
+        if (DES_Key == null) {
             try {
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 ks.load(null);
@@ -124,7 +123,7 @@ public class VoterClient extends JFrame implements ActionListener {
                 EncryptRSA serverPublicRSA;
 
                 SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
-                privateVoterDES = new EncryptDES(privateKey);
+                DES_Key = new EncryptDES(privateKey);
 
 //            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
                 String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
@@ -188,9 +187,9 @@ public class VoterClient extends JFrame implements ActionListener {
                 String sentSSN = ssn + "," + Hash(ssn);
 
                 System.out.println("Voter info sent to CLA Server");
-                CLA_Output.writeUTF(privateVoterDES.encrypt(sentSSN));
+                CLA_Output.writeUTF(DES_Key.encrypt(sentSSN));
                 input = CLA_Input.readUTF();
-                String decryptedInput = privateVoterDES.decrypt(input);
+                String decryptedInput = DES_Key.decrypt(input);
 
                 if (!decryptedInput.split(",")[0].equals("-1")) {
                     System.out.println("Your validation number is " + decryptedInput.split(",")[0]);
@@ -309,7 +308,6 @@ public class VoterClient extends JFrame implements ActionListener {
             //Connecting to the server with the correct ports
             runCTF("temp"); //Run to verify and allows the user to vote
 
-
             if (e.getSource() == butnVoteCode) {
                 System.out.println("========= Voting ==========");
                 removeVerifyUser();
@@ -388,7 +386,7 @@ public class VoterClient extends JFrame implements ActionListener {
         String input = "";
         boolean validConnection = false;
 
-        if (privateCTF_DES == null) {
+        if (DES_Key == null) {
             try {
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 ks.load(null);
@@ -396,63 +394,63 @@ public class VoterClient extends JFrame implements ActionListener {
                 CTF_Output = new DataOutputStream(client.getOutputStream());
                 CTF_Input = new DataInputStream(client.getInputStream());
 
-                rsa_Cipher = new EncryptRSA();
-                PublicKey serverPublicRSAKey;
-                EncryptRSA serverPublicRSA;
-
-                SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
-                privateCTF_DES = new EncryptDES(privateKey);
-
-//            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
-                String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
-                CTF_Output.writeUTF(encodedKey);
-//            System.out.println("Sent Encoded Public Key: " + encodedKey);
-
-                input = CTF_Input.readUTF();
-//            System.out.println("Received Encoded Key: " + input);
-                byte[] decodedKey = Base64.getDecoder().decode(input);
-//            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
-                X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
-                serverPublicRSAKey = KeyFactory.getInstance("RSA").generatePublic(spec);
-                serverPublicRSA = new EncryptRSA();
-
-                //Generate nonce1 and IDA
-                String nonce1 = Long.toString(new Date().getTime());
-                String IDA = "Client";
-
-                //Combine them together, encrypt them using the Server's public key and send to server
-                String message1 = nonce1 + "~" + IDA;
-//            System.out.println("Sending M1: " + message1);
-                String encryptedMessage = serverPublicRSA.encrypt(message1, serverPublicRSAKey);
-                CTF_Output.writeUTF(encryptedMessage);
-//            System.out.println("Sent Encrypted M1: " + encryptedMessage);
-
-                //Read in response from server
-                input = CTF_Input.readUTF();
-//            System.out.println("Received M2: " + input);
-                String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
-//            System.out.println("Decrypted M2: " + decryptedInput);
-
-                //Check if the server returned nonce1 verifying that it is the one sending this message
-                if (decryptedInput.split("~")[0].equals(nonce1)) {
-//                System.out.println("Nonce1 Matches: " + nonce1 + " = " + decryptedInput.split("~")[0]);
-
-                    String nonce2 = decryptedInput.split("~")[1];
-                    encryptedMessage = serverPublicRSA.encrypt(nonce2, serverPublicRSAKey);
-//                System.out.println("Sending M3: " + nonce2);
-                    CTF_Output.writeUTF(encryptedMessage);
-//                System.out.println("Sent Encrypted M3: " + encryptedMessage);
-
-//                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
-                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
-                    String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
-                    String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
-                    CTF_Output.writeUTF(keyPart1);
-//                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
-                    CTF_Output.writeUTF(keyPart2);
-//                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
+//                rsa_Cipher = new EncryptRSA();
+//                PublicKey serverPublicRSAKey;
+//                EncryptRSA serverPublicRSA;
+//
+//                SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
+//                DES_Key = new EncryptDES(privateKey);
+//
+////            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
+//                String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
+//                CTF_Output.writeUTF(encodedKey);
+////            System.out.println("Sent Encoded Public Key: " + encodedKey);
+//
+//                input = CTF_Input.readUTF();
+////            System.out.println("Received Encoded Key: " + input);
+//                byte[] decodedKey = Base64.getDecoder().decode(input);
+////            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
+//                X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
+//                serverPublicRSAKey = KeyFactory.getInstance("RSA").generatePublic(spec);
+//                serverPublicRSA = new EncryptRSA();
+//
+//                //Generate nonce1 and IDA
+//                String nonce1 = Long.toString(new Date().getTime());
+//                String IDA = "Client";
+//
+//                //Combine them together, encrypt them using the Server's public key and send to server
+//                String message1 = nonce1 + "~" + IDA;
+////            System.out.println("Sending M1: " + message1);
+//                String encryptedMessage = serverPublicRSA.encrypt(message1, serverPublicRSAKey);
+//                CTF_Output.writeUTF(encryptedMessage);
+////            System.out.println("Sent Encrypted M1: " + encryptedMessage);
+//
+//                //Read in response from server
+//                input = CTF_Input.readUTF();
+////            System.out.println("Received M2: " + input);
+//                String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
+////            System.out.println("Decrypted M2: " + decryptedInput);
+//
+//                //Check if the server returned nonce1 verifying that it is the one sending this message
+//                if (decryptedInput.split("~")[0].equals(nonce1)) {
+////                System.out.println("Nonce1 Matches: " + nonce1 + " = " + decryptedInput.split("~")[0]);
+//
+//                    String nonce2 = decryptedInput.split("~")[1];
+//                    encryptedMessage = serverPublicRSA.encrypt(nonce2, serverPublicRSAKey);
+////                System.out.println("Sending M3: " + nonce2);
+//                    CTF_Output.writeUTF(encryptedMessage);
+////                System.out.println("Sent Encrypted M3: " + encryptedMessage);
+//
+////                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
+//                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
+//                    String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
+//                    String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
+//                    CTF_Output.writeUTF(keyPart1);
+////                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
+//                    CTF_Output.writeUTF(keyPart2);
+////                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
                     validConnection = true;
-                }
+//                }
             } catch (Exception e) {
                 System.out.println("Error: " + e.getMessage());
             }
@@ -462,7 +460,7 @@ public class VoterClient extends JFrame implements ActionListener {
         }
         if (validConnection) {
             try {
-                
+                CTF_Output.writeUTF(DES_Key.encrypt(valCode));
             } catch (Exception ex) {
                 System.out.println("Error: " + ex.getMessage());
             }

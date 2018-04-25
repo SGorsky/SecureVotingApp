@@ -35,8 +35,8 @@ public class CLAServer {
     static DataOutputStream CTF_Output;
     static DataInputStream CTF_Input;
     private static EncryptRSA rsa_Cipher;
-    private static EncryptDES voterClientDES = null;
-    private static EncryptDES CTF_DES = null;
+    private static SecretKey secretKey = null;
+    private static EncryptDES DES_Key = null;
     private static Hashtable validationList = new Hashtable();
 
     /**
@@ -114,7 +114,8 @@ public class CLAServer {
                 String keyPart2 = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
                 decodedKey = Base64.getDecoder().decode(clientPublicRSA.decrypt(keyPart1 + keyPart2, clientPublicRSAKey));
 //                System.out.println("Received Decoded Private DES Key: " + Arrays.toString(decodedKey));
-                voterClientDES = new EncryptDES(new SecretKeySpec(decodedKey, "DES"));
+                secretKey = new SecretKeySpec(decodedKey, "DES");
+                DES_Key = new EncryptDES(secretKey);
 
                 validConnection = true;
             }
@@ -123,11 +124,11 @@ public class CLAServer {
         }
         System.out.println("Connected to VoterClient");
 
-        if (validConnection && voterClientDES != null) {
+        if (validConnection && DES_Key != null) {
             while (true) {
                 try {
                     input = voterInput.readUTF();
-                    String[] decryptedInput = voterClientDES.decrypt(input).split(",");
+                    String[] decryptedInput = DES_Key.decrypt(input).split(",");
                     String hashSSN = Hash(decryptedInput[0]);
                     if (decryptedInput[1].equals(hashSSN)) {
                         System.out.println("Hashes match. Data integrity preserved");
@@ -135,9 +136,9 @@ public class CLAServer {
                         String validationNumber = String.valueOf(decryptedInput[0].hashCode());
                         System.out.println("Validation Number for " + decryptedInput[0].split(":")[0] + " is " + validationNumber);
 
-                        voterOutput.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
+                        voterOutput.writeUTF(DES_Key.encrypt(validationNumber + "," + Hash(validationNumber)));
 
-                        if (!validationList.containsKey(validationNumber)) {
+                        if (!validationList.containsKey(Integer.valueOf(validationNumber))) {
                             validationList.put(Integer.valueOf(validationNumber), decryptedInput[0]);
                             ConnectToCTFServer(Integer.valueOf(validationNumber));
                         }
@@ -145,7 +146,7 @@ public class CLAServer {
                         System.out.println("Hashes do not match. Data integrity violated");
 
                         String validationNumber = "-1";
-                        voterOutput.writeUTF(voterClientDES.encrypt(validationNumber + "," + Hash(validationNumber)));
+                        voterOutput.writeUTF(DES_Key.encrypt(validationNumber + "," + Hash(validationNumber)));
                     }
                 } catch (Exception e) {
                     System.out.println("Error: " + e.getMessage());
@@ -158,19 +159,17 @@ public class CLAServer {
         String input = "";
         boolean validConnection = false;
 
-        if (CTF_DES == null) {
+        if (DES_Key == null || CTF_Output == null) {
             try {
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 ks.load(null);
-                client = new Socket("127.0.0.1", 9998);
+                client = new Socket("127.0.0.1", 49681);
                 CTF_Output = new DataOutputStream(client.getOutputStream());
                 CTF_Input = new DataInputStream(client.getInputStream());
 
                 rsa_Cipher = new EncryptRSA();
                 PublicKey serverPublicRSAKey;
                 EncryptRSA serverPublicRSA;
-
-                SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
 
 //            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
                 String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
@@ -213,28 +212,27 @@ public class CLAServer {
 //                System.out.println("Sent Encrypted M3: " + encryptedMessage);
 
 //                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
-                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
+                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(secretKey.getEncoded()), rsa_Cipher.PRIV_KEY);
                     String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
                     String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
-                    CTF_DES = new EncryptDES(privateKey);
                     CTF_Output.writeUTF(keyPart1);
 //                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
                     CTF_Output.writeUTF(keyPart2);
 //                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
                     validConnection = true;
+                    System.out.println("Connected to CTF Server");
                 }
             } catch (Exception e) {
                 System.out.println("Error: " + e.getMessage());
             }
-            System.out.println("Connected to CTF Server");
         } else {
             validConnection = true;
         }
         if (validConnection) {
             try {
                 String number = String.valueOf(validationNumber);
-                CTF_Output.writeUTF(CTF_DES.encrypt(number + "," + Hash(number)));
-                String[] decryptedInput = CTF_DES.decrypt(CTF_Input.readUTF()).split(",");
+                CTF_Output.writeUTF(DES_Key.encrypt(number + "," + Hash(number)));
+                String[] decryptedInput = DES_Key.decrypt(CTF_Input.readUTF()).split(",");
                 
                 if (decryptedInput.equals("0")) {
                     System.out.println("Validation Number (" + number + ") successfully stored in CTF Server");
