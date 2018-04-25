@@ -198,7 +198,6 @@ public class VoterClient extends JFrame implements ActionListener {
         getCode = new JButton("Get code");
         vote = new JButton("Vote");
         exit = new JButton("Exit");
-//        butnVoteCode = new JButton("Verify");
         back = new JButton("Back");
         castVote = new JButton("Vote");
 
@@ -244,11 +243,8 @@ public class VoterClient extends JFrame implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-
         System.out.println("============ In ActionPerfromed ============");
-        /*
-        *Taking input to verify the user and get the code
-         */
+        //Taking input to verify the user and get the code
         if (e.getSource() == getCode) {
             System.out.println("============ Getting code ============");
             String name = nameField.getText();
@@ -259,8 +255,6 @@ public class VoterClient extends JFrame implements ActionListener {
             try {
                 if (name.isEmpty()) {
                     System.out.println("Error: No name entered");
-                    // JOptionPane.showMessageDialog(mainFrame, "Enter in a valid name", "Error", JOptionPane.ERROR_MESSAGE);
-                    // System.exit(1);
                 } else {
                     Calendar c = Calendar.getInstance();
                     c.setLenient(false);
@@ -280,22 +274,13 @@ public class VoterClient extends JFrame implements ActionListener {
 
             } catch (Exception exception) {
                 System.out.println("Invalid Date: " + exception.getMessage());
-//                JOptionPane.showMessageDialog(mainFrame, "Invalid Date: " + exception.getMessage(), "Error",
-//                        JOptionPane.ERROR_MESSAGE);
             }
-        } //Once the user has the code, it is inputed to allow the user to cast a vote  
+        }
         else if (e.getSource() == vote) {
             System.out.println("========= Verifying user ==========");
             removeMainFrameComponents();
             verifyUser();
-            //Connecting to the server with the correct ports
-            //runCTF("temp"); //Run to verify and allows the user to vote
             castVote();
-//        } else if (e.getSource() == butnVoteCode) {
-//            System.out.println("========= Voting ==========");
-//            removeVerifyUser();
-//
-//            //DISPLAY RESULTS
         } else if (e.getSource() == castVote) {
             try {
                 int vote = 0;
@@ -318,15 +303,6 @@ public class VoterClient extends JFrame implements ActionListener {
                 } else {
                     System.out.println("No party selected");
                 }
-
-//                input = CLA_Input.readUTF();
-//                String decryptedInput = DES_Key.decrypt(input);
-//
-//                if (!decryptedInput.split(",")[0].equals("-1")) {
-//                    System.out.println("Your validation number is " + decryptedInput.split(",")[0]);
-//                } else {
-//                    System.out.println("Data integrity compromised. Please try again");
-//                }
             } catch (Exception ex) {
                 System.out.println("Error: " + ex.getMessage());
             }
