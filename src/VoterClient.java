@@ -49,14 +49,15 @@ public class VoterClient extends JFrame implements ActionListener {
 
     private PrintWriter socketOut;
     private BufferedReader socketIn;
-    //private final int currentYear = 2018;
-    //private final String serverAddress = "localhost";
 
     static Socket client = null;
-    static DataOutputStream outputStream;
-    static DataInputStream inputStream;
+    static DataOutputStream CLA_Output;
+    static DataInputStream CLA_Input;
+    static DataOutputStream CTF_Output;
+    static DataInputStream CTF_Input;
     private static EncryptRSA rsa_Cipher;
-    private static EncryptDES privateDES = null;
+    private static EncryptDES privateVoterDES = null;
+    private static EncryptDES privateCTF_DES = null;
 
     static final String KEYSTORE = "src/ElectionKey.jks";
     static final String TRUSTSTORE = "src/TrustStore.jks";
@@ -87,9 +88,6 @@ public class VoterClient extends JFrame implements ActionListener {
     private static JLabel writeMonth;
     private static JLabel writeDay;
 
-    private static boolean noConnectionCLA = false;		// used to display if the CLA server is not connected
-    private static boolean noConnectionCTF = false;		// used to display if the CTF server is not connected
-
     VoterClient() {
         //Initialize the frame layout
         initJFrame();
@@ -113,27 +111,27 @@ public class VoterClient extends JFrame implements ActionListener {
         String input = "";
         boolean validConnection = false;
 
-        if (privateDES == null) {
+        if (privateVoterDES == null) {
             try {
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 ks.load(null);
                 client = new Socket("127.0.0.1", 9999);
-                outputStream = new DataOutputStream(client.getOutputStream());
-                inputStream = new DataInputStream(client.getInputStream());
+                CLA_Output = new DataOutputStream(client.getOutputStream());
+                CLA_Input = new DataInputStream(client.getInputStream());
 
                 rsa_Cipher = new EncryptRSA();
                 PublicKey serverPublicRSAKey;
                 EncryptRSA serverPublicRSA;
 
                 SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
-                privateDES = new EncryptDES(privateKey);
+                privateVoterDES = new EncryptDES(privateKey);
 
 //            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
                 String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
-                outputStream.writeUTF(encodedKey);
+                CLA_Output.writeUTF(encodedKey);
 //            System.out.println("Sent Encoded Public Key: " + encodedKey);
 
-                input = inputStream.readUTF();
+                input = CLA_Input.readUTF();
 //            System.out.println("Received Encoded Key: " + input);
                 byte[] decodedKey = Base64.getDecoder().decode(input);
 //            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
@@ -149,11 +147,11 @@ public class VoterClient extends JFrame implements ActionListener {
                 String message1 = nonce1 + "~" + IDA;
 //            System.out.println("Sending M1: " + message1);
                 String encryptedMessage = serverPublicRSA.encrypt(message1, serverPublicRSAKey);
-                outputStream.writeUTF(encryptedMessage);
+                CLA_Output.writeUTF(encryptedMessage);
 //            System.out.println("Sent Encrypted M1: " + encryptedMessage);
 
                 //Read in response from server
-                input = inputStream.readUTF();
+                input = CLA_Input.readUTF();
 //            System.out.println("Received M2: " + input);
                 String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
 //            System.out.println("Decrypted M2: " + decryptedInput);
@@ -165,16 +163,16 @@ public class VoterClient extends JFrame implements ActionListener {
                     String nonce2 = decryptedInput.split("~")[1];
                     encryptedMessage = serverPublicRSA.encrypt(nonce2, serverPublicRSAKey);
 //                System.out.println("Sending M3: " + nonce2);
-                    outputStream.writeUTF(encryptedMessage);
+                    CLA_Output.writeUTF(encryptedMessage);
 //                System.out.println("Sent Encrypted M3: " + encryptedMessage);
 
 //                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
                     encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
                     String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
                     String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
-                    outputStream.writeUTF(keyPart1);
+                    CLA_Output.writeUTF(keyPart1);
 //                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
-                    outputStream.writeUTF(keyPart2);
+                    CLA_Output.writeUTF(keyPart2);
 //                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
                     validConnection = true;
                 }
@@ -190,9 +188,9 @@ public class VoterClient extends JFrame implements ActionListener {
                 String sentSSN = ssn + "," + Hash(ssn);
 
                 System.out.println("Voter info sent to CLA Server");
-                outputStream.writeUTF(privateDES.encrypt(sentSSN));
-                input = inputStream.readUTF();
-                String decryptedInput = privateDES.decrypt(input);
+                CLA_Output.writeUTF(privateVoterDES.encrypt(sentSSN));
+                input = CLA_Input.readUTF();
+                String decryptedInput = privateVoterDES.decrypt(input);
 
                 if (!decryptedInput.split(",")[0].equals("-1")) {
                     System.out.println("Your validation number is " + decryptedInput.split(",")[0]);
@@ -443,8 +441,6 @@ public class VoterClient extends JFrame implements ActionListener {
             } else {
                 System.out.println("RunCTF ERROR!");
             }
-
-            noConnectionCTF = false;
         } catch (Exception e) {
         }
         castVote();
