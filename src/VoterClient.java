@@ -204,57 +204,6 @@ public class VoterClient extends JFrame implements ActionListener {
                 System.out.println("Error: " + ex.getMessage());
             }
         }
-        /*
-        //Getting validation from the CTF server
-        try {
-            //Making keys to store the key from keys
-            System.out.println("Setting up keys for getting validation: ");
-            KeyStore keyStore = KeyStore.getInstance("JKS");
-            keyStore.load(new FileInputStream(KEYSTORE), STORE_PSWD.toCharArray());
-
-            //Storing turstStore
-            KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(new FileInputStream(TRUSTSTORE), STORE_PSWD.toCharArray());
-
-            //Generatating and instantiaing keys
-            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-            keyManagerFactory.init(keyStore, ALIAS_PSWD.toCharArray());
-
-            //Generating and initiating trust key
-            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
-            trustManagerFactory.init(trustStore);
-
-            //ISSUES with the SSL connection
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
-            SSLSocketFactory sslFact = sslContext.getSocketFactory();
-            SSLSocket client = (SSLSocket) sslFact.createSocket(host, port);
-            client.setEnabledCipherSuites(client.getSupportedCipherSuites());
-
-            System.out.println("\n>>>> Voter client <-> CLA SSL/TLS handshake completed");
-
-            socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
-            socketOut = new PrintWriter(client.getOutputStream(), true);
-
-            BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
-
-            socketOut.println("VoterClient");
-            socketOut.println(ssn);
-            System.out.println("Voter client sending SSN " + ssn + " to CLA server");
-
-            String validationCode = socketIn.readLine();
-            System.out.println("Voter client received validation number " + validationCode + " from the CLA server");
-            if (!validationCode.equals("")) {
-                //txtFieldDisplayCode.setText(validationCode);
-            }
-
-            // Stop loop on server
-            socketOut.println("");
-            noConnectionCLA = false;
-
-        } catch (Exception e) {
-
-        }*/
     }
 
     //Initializing the frame

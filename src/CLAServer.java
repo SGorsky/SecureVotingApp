@@ -142,47 +142,6 @@ public class CLAServer {
                 }
             }
         }
-        /*
-        try {
-            KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(KEYSTORE), keySTOREPASSWD.toCharArray());
-
-            KeyStore ts = KeyStore.getInstance("JCEKS");
-            ts.load(new FileInputStream(TRUSTSTORE), trustSTOREPASSWD.toCharArray());
-
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            kmf.init(ks, ALIASPASSWD.toCharArray());
-
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
-            tmf.init(ts);
-
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-            SSLServerSocketFactory sslServerFactory = sslContext.getServerSocketFactory();
-            SSLServerSocket sss = (SSLServerSocket) sslServerFactory.createServerSocket(port);
-            sss.setEnabledCipherSuites(sss.getSupportedCipherSuites());
-
-            // Client authentication
-            sss.setNeedClientAuth(true);
-
-            System.out.println("\n>>>> CLA Server: active ");
-            SSLSocket incoming = (SSLSocket)sss.accept();
-
-            // Create a thread for each client connecting to this server
-            while (true) {
-                try {
-                    incoming = (SSLSocket) sss.accept();
-                    System.out.println("hej!");
-                } catch (IOException e) {
-                    System.out.println("I/O error: " + e);
-                }
-                // new thread for a client
-                new CLAHandlerThread(incoming).start();
-            }
-        } catch (Exception x) {
-            System.out.println(x);
-            x.printStackTrace();
-        }*/
     }
 
     public String Hash(String string) {
