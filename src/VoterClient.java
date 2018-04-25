@@ -5,36 +5,26 @@ import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManagerFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
-import javax.swing.JOptionPane;
 
 /**
  *
@@ -289,10 +279,6 @@ public class VoterClient extends JFrame implements ActionListener {
                         runCLA(voterInfo);
                     }
                 }
-                //Connecting to the CLA server with the correct ports
-//                InetAddress CLAHost = InetAddress.getLocalHost();
-//                VoterClient vc = new VoterClient(CLAHost, DEFAULT_CLA_PORT);
-//                vc.runCLA(voterInfo);
 
             } catch (Exception exception) {
                 System.out.println("Invalid Date: " + exception.getMessage());
@@ -305,13 +291,11 @@ public class VoterClient extends JFrame implements ActionListener {
             removeMainFrameComponents();
             verifyUser();
             //Connecting to the server with the correct ports
-            runCTF("temp"); //Run to verify and allows the user to vote
-
-            if (e.getSource() == butnVoteCode) {
-                System.out.println("========= Voting ==========");
-                removeVerifyUser();
-                //DISPLAY RESULTS
-            }
+            //runCTF("temp"); //Run to verify and allows the user to vote
+        } else if (e.getSource() == butnVoteCode) {
+            System.out.println("========= Voting ==========");
+            removeVerifyUser();
+            //DISPLAY RESULTS
         } else if (e.getSource() == back) {
             initJFrame();
         } else if (e.getSource() == exit) {
@@ -324,6 +308,10 @@ public class VoterClient extends JFrame implements ActionListener {
         mainFrame.add(butnVoteCode);
         mainFrame.add(back);
         mainFrame.add(voteCode);
+
+        butnVoteCode.addActionListener(this);
+        back.addActionListener(this);
+        voteCode.addActionListener(this);
         //writeVoteCode.setVisible(true);
 
         mainFrame.repaint();

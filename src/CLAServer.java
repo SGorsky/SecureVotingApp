@@ -143,7 +143,7 @@ public class CLAServer {
                             ConnectToCTFServer(Integer.valueOf(validationNumber));
                         }
                     } else {
-                        System.out.println("Hashes do not match. Data integrity violated");
+                        System.out.println("Hashes do not match. Data integrity breached!");
 
                         String validationNumber = "-1";
                         voterOutput.writeUTF(DES_Key.encrypt(validationNumber + "," + Hash(validationNumber)));
