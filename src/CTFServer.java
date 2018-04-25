@@ -7,6 +7,7 @@ import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Hashtable;
 import java.util.List;
@@ -35,8 +36,7 @@ public class CTFServer {
     static Socket CLA_Socket = null;
     static Socket voterSocket = null;
 
-    private static List<Integer> votingResults = new ArrayList<Integer>();
-    private static Hashtable<Integer, Boolean> validationList = new Hashtable<Integer, Boolean>();
+    private static Hashtable<Integer, Integer> voteResults = new Hashtable<Integer, Integer>();
 
     /**
      * Constructor
@@ -126,20 +126,54 @@ public class CTFServer {
             while (true) {
                 try {
                     input = DES_Key.decrypt(CLA_Input.readUTF());
-                    System.out.println(input);
-                    String[] validationNumber = input.split(",");
-                    int num = Integer.valueOf(validationNumber[0]);
+                    String[] decryptedInput = input.split("~~");
 
-                    if (Hash(validationNumber[0]).equals(validationNumber[1])) {
-                        if (!validationList.containsKey(num)) {
-                            validationList.put(num, false);
-                            System.out.println("Validation Number (" + num + ") stored");
-                            CLA_Output.writeUTF(DES_Key.encrypt("0," + Hash("0")));
+                    if (decryptedInput.length == 2) {
+                        if (Hash(decryptedInput[0]).equals(decryptedInput[1])) {
+                            int num = Integer.valueOf(decryptedInput[0]);
+                            if (!voteResults.containsKey(num)) {
+                                voteResults.put(num, 0);
+                                System.out.println("Validation Number (" + num + ") stored");
+                                CLA_Output.writeUTF(DES_Key.encrypt("0~~" + Hash("0")));
+                            }
+                        } else {
+                            System.out.println("Data integrity breached. Hashes do not match!");
+                            CLA_Output.writeUTF(DES_Key.encrypt("-1~~" + Hash("-1")));
                         }
-                    } else {
-                        System.out.println("Data integrity breached. Hashes do not match!\nReceived: " + validationNumber[1]
-                                + "\nCalculated: " + Hash(validationNumber[0]));
-                        CLA_Output.writeUTF(DES_Key.encrypt("-1," + Hash("-1")));
+                    } else if (input.startsWith("VC")) {
+                        if (Hash(decryptedInput[1] + "~~" + decryptedInput[2]).equals(decryptedInput[3])) {
+                            int validationNumber = Integer.valueOf(decryptedInput[1]);
+                            int vote = Integer.valueOf(decryptedInput[2]);
+
+                            if (voteResults.containsKey(validationNumber)) {
+                                if (voteResults.get(validationNumber) == 0) {
+                                    voteResults.replace(validationNumber, 0, vote);
+                                    System.out.println(validationNumber + " voted for " + vote);
+                                    //All validation numbers have a vote associated with them
+                                    //Count the votes now
+                                    if (Collections.frequency(voteResults.values(), 0) == 0){
+                                        System.out.println("\nTallying Final Votes\n====================");
+                                        for (int i = 1; i <= Collections.max(voteResults.values()); ++i){
+                                            System.out.println("Party " + i + ": " 
+                                                    + Collections.frequency(voteResults.values(), i));
+                                        }
+                                        CLA_Output.writeUTF(DES_Key.encrypt("1~~" + Hash("1")));
+                                    }
+                                    else {
+                                        CLA_Output.writeUTF(DES_Key.encrypt("0~~" + Hash("0")));
+                                    }
+                                } else {
+                                    System.out.println("A vote was already cast for this validation number.");
+                                    CLA_Output.writeUTF(DES_Key.encrypt("-3~~" + Hash("-3")));
+                                }
+                            } else {
+                                System.out.println("Invalid Validation Number entered.");
+                                CLA_Output.writeUTF(DES_Key.encrypt("-2~~" + Hash("-2")));
+                            }
+                        } else {
+                            System.out.println("Data integrity breached. Hashes do not match!");
+                            CLA_Output.writeUTF(DES_Key.encrypt("-1~~" + Hash("-1")));
+                        }
                     }
                 } catch (Exception ioe) {
                     System.out.println("Error: " + ioe.getMessage());

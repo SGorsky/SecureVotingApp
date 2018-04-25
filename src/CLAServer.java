@@ -128,25 +128,41 @@ public class CLAServer {
             while (true) {
                 try {
                     input = voterInput.readUTF();
-                    String[] decryptedInput = DES_Key.decrypt(input).split(",");
-                    String hashSSN = Hash(decryptedInput[0]);
-                    if (decryptedInput[1].equals(hashSSN)) {
-                        System.out.println("Hashes match. Data integrity preserved");
+                    String decryptedInput = DES_Key.decrypt(input);
+                    if (!decryptedInput.startsWith("CTF|||")) {
+                        String[] data = decryptedInput.split("~~");
+                        String hashSSN = Hash(data[0]);
+                        if (data[1].equals(hashSSN)) {
+                            System.out.println("Hashes match. Data integrity preserved");
 
-                        String validationNumber = String.valueOf(decryptedInput[0].hashCode());
-                        System.out.println("Validation Number for " + decryptedInput[0].split(":")[0] + " is " + validationNumber);
+                            String validationNumber = String.valueOf(data[0].hashCode());
+                            System.out.println("Validation Number for " + data[0].split(":")[0] + " is " + validationNumber);
 
-                        voterOutput.writeUTF(DES_Key.encrypt(validationNumber + "," + Hash(validationNumber)));
+                            voterOutput.writeUTF(DES_Key.encrypt(validationNumber + "~~" + Hash(validationNumber)));
 
-                        if (!validationList.containsKey(Integer.valueOf(validationNumber))) {
-                            validationList.put(Integer.valueOf(validationNumber), decryptedInput[0]);
-                            ConnectToCTFServer(Integer.valueOf(validationNumber));
+                            if (!validationList.containsKey(Integer.valueOf(validationNumber))) {
+                                validationList.put(Integer.valueOf(validationNumber), data[0]);
+                                ConnectToCTFServer(Integer.valueOf(validationNumber));
+                            }
+                        } else {
+                            System.out.println("Hashes do not match. Data integrity breached!");
+                            voterOutput.writeUTF(DES_Key.encrypt("-1~~" + Hash("-1")));
                         }
                     } else {
-                        System.out.println("Hashes do not match. Data integrity breached!");
-
-                        String validationNumber = "-1";
-                        voterOutput.writeUTF(DES_Key.encrypt(validationNumber + "," + Hash(validationNumber)));
+                        String[] data = decryptedInput.replace("CTF|||", "").split("~~");
+                        if (data[2].equals(Hash(data[0] + "~~" + data[1]))) {
+                            CTF_Output.writeUTF(DES_Key.encrypt("VC~~" + data[0] + "~~" + data[1] + "~~" + data[2]));
+                            
+                            input = CTF_Input.readUTF();
+                            data = DES_Key.decrypt(input).split("~~");
+                            
+                            if (data[1].equals(Hash(data[0]))){
+                                voterOutput.writeUTF(input);
+                            }
+                        } else {
+                            System.out.println("Hashes do not match. Data integrity breached!");
+                            voterOutput.writeUTF(DES_Key.encrypt("-1~~" + Hash("-1")));
+                        }
                     }
                 } catch (Exception e) {
                     System.out.println("Error: " + e.getMessage());
@@ -231,13 +247,12 @@ public class CLAServer {
         if (validConnection) {
             try {
                 String number = String.valueOf(validationNumber);
-                CTF_Output.writeUTF(DES_Key.encrypt(number + "," + Hash(number)));
-                String[] decryptedInput = DES_Key.decrypt(CTF_Input.readUTF()).split(",");
-                
+                CTF_Output.writeUTF(DES_Key.encrypt(number + "~~" + Hash(number)));
+                String[] decryptedInput = DES_Key.decrypt(CTF_Input.readUTF()).split("~~");
+
                 if (decryptedInput.equals("0")) {
                     System.out.println("Validation Number (" + number + ") successfully stored in CTF Server");
-                }
-                else if (decryptedInput.equals("-1")){
+                } else if (decryptedInput.equals("-1")) {
                     System.out.println("Data integrity of validation number breached between CLA and CTF Server");
                 }
             } catch (Exception ex) {

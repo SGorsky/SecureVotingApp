@@ -64,7 +64,6 @@ public class VoterClient extends JFrame implements ActionListener {
     private static JRadioButton party1;
     private static JRadioButton party2;
     private static JRadioButton party3;
-    private static JRadioButton party4;
 
     private static JTextField nameField;
     private static JTextField yearField;
@@ -174,15 +173,15 @@ public class VoterClient extends JFrame implements ActionListener {
         }
         if (validConnection) {
             try {
-                String sentSSN = ssn + "," + Hash(ssn);
+                String sentSSN = ssn + "~~" + Hash(ssn);
 
                 System.out.println("Voter info sent to CLA Server");
                 CLA_Output.writeUTF(DES_Key.encrypt(sentSSN));
                 input = CLA_Input.readUTF();
                 String decryptedInput = DES_Key.decrypt(input);
 
-                if (!decryptedInput.split(",")[0].equals("-1")) {
-                    System.out.println("Your validation number is " + decryptedInput.split(",")[0]);
+                if (!decryptedInput.split("~~")[0].equals("-1")) {
+                    System.out.println("Your validation number is " + decryptedInput.split("~~")[0]);
                 } else {
                     System.out.println("Data integrity compromised. Please try again");
                 }
@@ -199,14 +198,13 @@ public class VoterClient extends JFrame implements ActionListener {
         getCode = new JButton("Get code");
         vote = new JButton("Vote");
         exit = new JButton("Exit");
-        butnVoteCode = new JButton("Verify");
+//        butnVoteCode = new JButton("Verify");
         back = new JButton("Back");
         castVote = new JButton("Vote");
 
-        party1 = new JRadioButton("Party1");
-        party2 = new JRadioButton("Party2");
-        party3 = new JRadioButton("Party3");
-        party4 = new JRadioButton("Party4");
+        party1 = new JRadioButton("Party 1");
+        party2 = new JRadioButton("Party 2");
+        party3 = new JRadioButton("Party 3");
 
         //Setting up the field to make sure user is over 18 to vote
         nameField = new JTextField(5);
@@ -292,10 +290,46 @@ public class VoterClient extends JFrame implements ActionListener {
             verifyUser();
             //Connecting to the server with the correct ports
             //runCTF("temp"); //Run to verify and allows the user to vote
-        } else if (e.getSource() == butnVoteCode) {
-            System.out.println("========= Voting ==========");
-            removeVerifyUser();
-            //DISPLAY RESULTS
+            castVote();
+//        } else if (e.getSource() == butnVoteCode) {
+//            System.out.println("========= Voting ==========");
+//            removeVerifyUser();
+//
+//            //DISPLAY RESULTS
+        } else if (e.getSource() == castVote) {
+            try {
+                int vote = 0;
+                if (party1.isSelected()) {
+                    vote = 1;
+                } else if (party2.isSelected()) {
+                    vote = 2;
+                } else if (party3.isSelected()) {
+                    vote = 3;
+                }
+                System.out.println("Vote: " + vote + "\nVote Code: " + voteCode.getText());
+                if (vote != 0) {
+                    CLA_Output.writeUTF(DES_Key.encrypt("CTF|||" + voteCode.getText() + "~~" + vote
+                            + "~~" + Hash(voteCode.getText() + "~~" + vote)));
+                    
+                    String[] decryptedInput = DES_Key.decrypt(CLA_Input.readUTF()).split("~~");
+                    if (decryptedInput[1].equals(Hash(decryptedInput[0]))){
+                        System.out.println("Response from CTF Server: " + decryptedInput[0]);
+                    }
+                } else {
+                    System.out.println("No party selected");
+                }
+
+//                input = CLA_Input.readUTF();
+//                String decryptedInput = DES_Key.decrypt(input);
+//
+//                if (!decryptedInput.split(",")[0].equals("-1")) {
+//                    System.out.println("Your validation number is " + decryptedInput.split(",")[0]);
+//                } else {
+//                    System.out.println("Data integrity compromised. Please try again");
+//                }
+            } catch (Exception ex) {
+                System.out.println("Error: " + ex.getMessage());
+            }
         } else if (e.getSource() == back) {
             initJFrame();
         } else if (e.getSource() == exit) {
@@ -305,11 +339,11 @@ public class VoterClient extends JFrame implements ActionListener {
     }
 
     public void verifyUser() {
-        mainFrame.add(butnVoteCode);
+//        mainFrame.add(butnVoteCode);
         mainFrame.add(back);
         mainFrame.add(voteCode);
 
-        butnVoteCode.addActionListener(this);
+//        butnVoteCode.addActionListener(this);
         back.addActionListener(this);
         voteCode.addActionListener(this);
         //writeVoteCode.setVisible(true);
@@ -320,7 +354,7 @@ public class VoterClient extends JFrame implements ActionListener {
     }
 
     public void removeVerifyUser() {
-        butnVoteCode.setVisible(false);
+//        butnVoteCode.setVisible(false);
         voteCode.setVisible(false);
         back.setVisible(false);
 
@@ -329,25 +363,18 @@ public class VoterClient extends JFrame implements ActionListener {
     }
 
     public void castVote() {
-        System.out.println("Setting up the radio buttons");
-
         //Grouping radio buttons
         ButtonGroup group = new ButtonGroup();
         group.add(party1);
         group.add(party2);
         group.add(party3);
-        group.add(party4);
 
-        party1.addActionListener(this);
-        party2.addActionListener(this);
-        party3.addActionListener(this);
-        party4.addActionListener(this);
+        castVote.addActionListener(this);
 
         mainFrame.add(castVote);
         mainFrame.add(party1);
         mainFrame.add(party2);
         mainFrame.add(party3);
-        mainFrame.add(party4);
 
         mainFrame.repaint();
         mainFrame.validate();
@@ -379,62 +406,6 @@ public class VoterClient extends JFrame implements ActionListener {
             client = new Socket("127.0.0.1", 49681);
             CTF_Output = new DataOutputStream(client.getOutputStream());
             CTF_Input = new DataInputStream(client.getInputStream());
-
-//                rsa_Cipher = new EncryptRSA();
-//                PublicKey serverPublicRSAKey;
-//                EncryptRSA serverPublicRSA;
-//
-//                SecretKey privateKey = KeyGenerator.getInstance("DES").generateKey();
-//                DES_Key = new EncryptDES(privateKey);
-//
-////            System.out.println("Decoded Public Key: " + Arrays.toString(rsa_Cipher.PUB_KEY.getEncoded()));
-//                String encodedKey = Base64.getEncoder().encodeToString(rsa_Cipher.PUB_KEY.getEncoded());
-//                CTF_Output.writeUTF(encodedKey);
-////            System.out.println("Sent Encoded Public Key: " + encodedKey);
-//
-//                input = CTF_Input.readUTF();
-////            System.out.println("Received Encoded Key: " + input);
-//                byte[] decodedKey = Base64.getDecoder().decode(input);
-////            System.out.println("Received Decoded Key: " + Arrays.toString(decodedKey));
-//                X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
-//                serverPublicRSAKey = KeyFactory.getInstance("RSA").generatePublic(spec);
-//                serverPublicRSA = new EncryptRSA();
-//
-//                //Generate nonce1 and IDA
-//                String nonce1 = Long.toString(new Date().getTime());
-//                String IDA = "Client";
-//
-//                //Combine them together, encrypt them using the Server's public key and send to server
-//                String message1 = nonce1 + "~" + IDA;
-////            System.out.println("Sending M1: " + message1);
-//                String encryptedMessage = serverPublicRSA.encrypt(message1, serverPublicRSAKey);
-//                CTF_Output.writeUTF(encryptedMessage);
-////            System.out.println("Sent Encrypted M1: " + encryptedMessage);
-//
-//                //Read in response from server
-//                input = CTF_Input.readUTF();
-////            System.out.println("Received M2: " + input);
-//                String decryptedInput = rsa_Cipher.decrypt(input, rsa_Cipher.PRIV_KEY);
-////            System.out.println("Decrypted M2: " + decryptedInput);
-//
-//                //Check if the server returned nonce1 verifying that it is the one sending this message
-//                if (decryptedInput.split("~")[0].equals(nonce1)) {
-////                System.out.println("Nonce1 Matches: " + nonce1 + " = " + decryptedInput.split("~")[0]);
-//
-//                    String nonce2 = decryptedInput.split("~")[1];
-//                    encryptedMessage = serverPublicRSA.encrypt(nonce2, serverPublicRSAKey);
-////                System.out.println("Sending M3: " + nonce2);
-//                    CTF_Output.writeUTF(encryptedMessage);
-////                System.out.println("Sent Encrypted M3: " + encryptedMessage);
-//
-////                System.out.println("Decoded Private DES Key: " + Arrays.toString(privateKey.getEncoded()));
-//                    encodedKey = rsa_Cipher.encrypt(Base64.getEncoder().encodeToString(privateKey.getEncoded()), rsa_Cipher.PRIV_KEY);
-//                    String keyPart1 = serverPublicRSA.encrypt(encodedKey.substring(0, encodedKey.length() / 2), serverPublicRSAKey);
-//                    String keyPart2 = serverPublicRSA.encrypt(encodedKey.substring(encodedKey.length() / 2), serverPublicRSAKey);
-//                    CTF_Output.writeUTF(keyPart1);
-////                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
-//                    CTF_Output.writeUTF(keyPart2);
-////                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
             validConnection = true;
             System.out.println("Connected to CTF Server");
 //                }
@@ -444,63 +415,11 @@ public class VoterClient extends JFrame implements ActionListener {
 
         if (validConnection) {
             try {
-                CTF_Output.writeUTF(DES_Key.encrypt(valCode + "," + Hash(valCode)));
+                CTF_Output.writeUTF(DES_Key.encrypt(valCode + "~~" + Hash(valCode)));
             } catch (Exception ex) {
                 System.out.println("Error: " + ex.getMessage());
             }
         }
-        //Call the CTF to confirm user code 
-//        try {
-//            //Making keys to store the key from keys
-//            System.out.println("Setting up keys for getting validation: ");
-//            KeyStore keyStore = KeyStore.getInstance("JKS");
-//            keyStore.load(new FileInputStream(KEYSTORE), STORE_PSWD.toCharArray());
-//
-//            //Storing turstStore
-//            KeyStore trustStore = KeyStore.getInstance("JKS");
-//            trustStore.load(new FileInputStream(TRUSTSTORE), STORE_PSWD.toCharArray());
-//
-//            //Generatating and instantiaing keys
-//            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-//            keyManagerFactory.init(keyStore, ALIAS_PSWD.toCharArray());
-//
-//            //Generating and initiating trust key
-//            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
-//            trustManagerFactory.init(trustStore);
-//
-//            //ISSUES with the SSL connection
-//            SSLContext sslContext = SSLContext.getInstance("TLS");
-//            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
-//            SSLSocketFactory sslFact = sslContext.getSocketFactory();
-//            SSLSocket client = (SSLSocket) sslFact.createSocket(host, port);
-//            client.setEnabledCipherSuites(client.getSupportedCipherSuites());
-//
-//            System.out.println("\n>>>> Voter client <-> CTF SSL/TLS handshake completed");
-//
-//            socketIn = new BufferedReader(new InputStreamReader(client.getInputStream()));
-//            socketOut = new PrintWriter(client.getOutputStream(), true);
-//
-//            BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
-//            System.out.println("Voter client sending validation code " + valCode + " to CTF server");
-//            socketOut.println(valCode);
-//
-//            int voterCase = Integer.parseInt(socketIn.readLine());
-//            if (voterCase == 0) {
-//                JOptionPane.showMessageDialog(null, "Invalid code!");
-//                socketOut.println("IngetParti");
-//            } else if (voterCase == 1) {
-//                // the voter has not already voted
-//                castVote();
-//            } else if (voterCase == 2) {
-//                String tmp = socketIn.readLine();
-//                JOptionPane.showMessageDialog(null, "You have already voted! You voted for " + tmp);
-//                socketOut.println("IngetParti");
-//                //displayVoteResults();
-//            } else {
-//                System.out.println("RunCTF ERROR!");
-//            }
-//        } catch (Exception e) {
-//        }
         castVote();
     }
 
