@@ -125,8 +125,9 @@ public class CTFServer {
         if (validConnection && DES_Key != null) {
             while (true) {
                 try {
-                    String[] validationNumber = DES_Key.decrypt(CLA_Input.readUTF()).split(",");
-                    System.out.println(validationNumber[0] + "," + validationNumber[1]);
+                    input = DES_Key.decrypt(CLA_Input.readUTF());
+                    System.out.println(input);
+                    String[] validationNumber = input.split(",");
                     int num = Integer.valueOf(validationNumber[0]);
 
                     if (Hash(validationNumber[0]).equals(validationNumber[1])) {

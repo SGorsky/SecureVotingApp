@@ -193,8 +193,7 @@ public class VoterClient extends JFrame implements ActionListener {
 
                 if (!decryptedInput.split(",")[0].equals("-1")) {
                     System.out.println("Your validation number is " + decryptedInput.split(",")[0]);
-                }
-                else {
+                } else {
                     System.out.println("Data integrity compromised. Please try again");
                 }
             } catch (Exception ex) {
@@ -280,8 +279,8 @@ public class VoterClient extends JFrame implements ActionListener {
                     c.clear();
                     c.set(Integer.parseInt(year), Integer.parseInt(month) - 1, Integer.parseInt(day));
                     Calendar today = Calendar.getInstance();
-                    System.out.println("User Info: " + name + " - " + 
-                            c.getTime().toString().replaceAll(" \\d\\d:\\d\\d:\\d\\d \\w\\w\\w ", " "));
+                    System.out.println("User Info: " + name + " - "
+                            + c.getTime().toString().replaceAll(" \\d\\d:\\d\\d:\\d\\d \\w\\w\\w ", " "));
                     today.add(Calendar.YEAR, -18);
                     if (today.before(c)) {
                         System.out.println("Sorry. You need to be at least 18 to vote.");
@@ -386,13 +385,12 @@ public class VoterClient extends JFrame implements ActionListener {
         String input = "";
         boolean validConnection = false;
 
-        if (DES_Key == null) {
-            try {
-                KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-                ks.load(null);
-                client = new Socket("127.0.0.1", 49681);
-                CTF_Output = new DataOutputStream(client.getOutputStream());
-                CTF_Input = new DataInputStream(client.getInputStream());
+        try {
+            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            ks.load(null);
+            client = new Socket("127.0.0.1", 49681);
+            CTF_Output = new DataOutputStream(client.getOutputStream());
+            CTF_Input = new DataInputStream(client.getInputStream());
 
 //                rsa_Cipher = new EncryptRSA();
 //                PublicKey serverPublicRSAKey;
@@ -449,18 +447,16 @@ public class VoterClient extends JFrame implements ActionListener {
 ////                System.out.println("Sent Part 1 Encrypted Encoded Private DES Key: " + keyPart1);
 //                    CTF_Output.writeUTF(keyPart2);
 ////                System.out.println("Sent Part 2 Encrypted Encoded Private DES Key: " + keyPart2 + "\n");
-                    validConnection = true;
-//                }
-            } catch (Exception e) {
-                System.out.println("Error: " + e.getMessage());
-            }
-            System.out.println("Connected to CTF Server");
-        } else {
             validConnection = true;
+            System.out.println("Connected to CTF Server");
+//                }
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
         }
+
         if (validConnection) {
             try {
-                CTF_Output.writeUTF(DES_Key.encrypt(valCode));
+                CTF_Output.writeUTF(DES_Key.encrypt(valCode + "," + Hash(valCode)));
             } catch (Exception ex) {
                 System.out.println("Error: " + ex.getMessage());
             }
